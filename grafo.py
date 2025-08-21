@@ -28,23 +28,3 @@ class grafo:
             lines.append(f"{r} -> {{ {vecinos} }}")
         return "\n".join(lines)
 
-g = grafo()
-
-edges = [
-    ("A","B",7),
-    ("A","I",3),
-    ("A","C",7),
-    ("B","F",2),
-    ("I","D",6),
-    ("C","D",5),
-    ("D","F",1),
-    ("D","E",1),
-    ("F","G",3),
-    ("F","H",4),
-    ("G","E",4),
-]
-
-for a,b,w in edges:
-    g.agregar_conexion(a,b,w)
-
-print(g)  # para ver la estructura
