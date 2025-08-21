@@ -1,0 +1,87 @@
+[
+    {
+        "destino": "A",
+        "next_hop": "D",
+        "costo": 8.0,
+        "ruta": [
+            "F",
+            "D",
+            "I",
+            "A"
+        ]
+    },
+    {
+        "destino": "B",
+        "next_hop": "B",
+        "costo": 2.0,
+        "ruta": [
+            "F",
+            "B"
+        ]
+    },
+    {
+        "destino": "C",
+        "next_hop": "D",
+        "costo": 6.0,
+        "ruta": [
+            "F",
+            "D",
+            "C"
+        ]
+    },
+    {
+        "destino": "D",
+        "next_hop": "D",
+        "costo": 1.0,
+        "ruta": [
+            "F",
+            "D"
+        ]
+    },
+    {
+        "destino": "E",
+        "next_hop": "D",
+        "costo": 2.0,
+        "ruta": [
+            "F",
+            "D",
+            "E"
+        ]
+    },
+    {
+        "destino": "F",
+        "next_hop": "",
+        "costo": 0.0,
+        "ruta": [
+            "F"
+        ]
+    },
+    {
+        "destino": "G",
+        "next_hop": "G",
+        "costo": 3.0,
+        "ruta": [
+            "F",
+            "G"
+        ]
+    },
+    {
+        "destino": "H",
+        "next_hop": "H",
+        "costo": 4.0,
+        "ruta": [
+            "F",
+            "H"
+        ]
+    },
+    {
+        "destino": "I",
+        "next_hop": "D",
+        "costo": 7.0,
+        "ruta": [
+            "F",
+            "D",
+            "I"
+        ]
+    }
+]

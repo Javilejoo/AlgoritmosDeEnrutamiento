@@ -1,7 +1,8 @@
 # dijkstra.py
-from __future__ import annotations
 from typing import Dict, Optional, List, Tuple
 import heapq
+import os, json
+
 
 # Importa tu clase grafo
 from grafo import grafo
@@ -75,6 +76,67 @@ def forwarding_table(G: grafo, source: str) -> List[Tuple[str, Optional[str], fl
         filas.append((dest, nh, dist[dest]))
     return filas
 
+def reconstruir_ruta(source: str, dest: str, prev: Dict[str, Optional[str]]) -> Optional[List[str]]:
+    if source == dest:
+        return [source]
+    path = []
+    cur = dest
+    while cur is not None:
+        path.append(cur)
+        if cur == source:
+            break
+        cur = prev[cur]
+    if not path or path[-1] != source:
+        return None
+    path.reverse()
+    return path
+
+def construir_tablas_para_todos(G: grafo, incluir_ruta: bool = False) -> Dict[str, List[Tuple[str, Optional[str], float, Optional[List[str]]]]]:
+    """
+    Devuelve un dict: tablas[router] = lista de filas
+    Cada fila: (destino, next_hop, costo_total, ruta_opcional)
+    """
+    tablas: Dict[str, List[Tuple[str, Optional[str], float, Optional[List[str]]]]] = {}
+    for origen in sorted(G.routers):
+        dist, prev = dijkstra(G, origen)
+        filas = []
+        for dest in sorted(G.routers):
+            nh = first_hop(origen, dest, prev)
+            ruta = reconstruir_ruta(origen, dest, prev) if incluir_ruta else None
+            filas.append((dest, nh, dist[dest], ruta))
+        tablas[origen] = filas
+    return tablas
+
+def imprimir_tabla(origen: str, filas: List[Tuple[str, Optional[str], float, Optional[List[str]]]]) -> None:
+    print(f"\nTabla de enrutamiento para {origen}")
+    print("Destino | next-hop | costo | ruta")
+    print("-------------------------------------------")
+    for dest, nh, cost, ruta in filas:
+        costo_str = "∞" if cost == float("inf") else (f"{int(cost)}" if float(cost).is_integer() else f"{cost:.3f}")
+        nh_str = nh if nh is not None else "-"
+        ruta_str = "->".join(ruta) if ruta else "-"
+        print(f"{dest:7} {nh_str:9} {costo_str:6}  {ruta_str}")
+
+
+def guardar_tablas_json(tablas: Dict[str, List[Tuple[str, Optional[str], float, Optional[List[str]]]]],
+                        carpeta: str = "tablas_json") -> None:
+    """
+    Guarda cada tabla en un archivo JSON: tabla_A.json, tabla_B.json, ...
+    """
+    os.makedirs(carpeta, exist_ok=True)
+    for origen, filas in tablas.items():
+        data = []
+        for dest, nh, cost, ruta in filas:
+            data.append({
+                "destino": dest,
+                "next_hop": nh if nh is not None else "",
+                "costo": cost if cost != float("inf") else None,
+                "ruta": ruta if ruta else []
+            })
+        ruta_archivo = os.path.join(carpeta, f"tabla_{origen}.json")
+        with open(ruta_archivo, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+
 if __name__ == "__main__":
     
     g = grafo()
@@ -98,10 +160,34 @@ if __name__ == "__main__":
 
     print(g)  # para ver la estructura
 
-    origen = "A"
-    tabla = forwarding_table(g, origen)
-    print(f"Tabla de enrutamiento para {origen}")
-    for dest, nh, cost in tabla:
-        costo_str = "∞" if cost == float("inf") else (f"{int(cost)}" if cost.is_integer() else f"{cost:.3f}")
-        nh_str = nh if nh is not None else "-"
-        print(f"{origen} -> {dest:2} | next-hop: {nh_str:2} | costo: {costo_str}")
+        # 1) Calcula todas las tablas (incluyendo ruta completa)
+    tablas = construir_tablas_para_todos(g, incluir_ruta=True)
+
+    # 2) Accede a cada una como tablas['A'], tablas['B'], ...
+    tabla_A = tablas['A']
+    tabla_B = tablas['B']
+    tabla_C = tablas['C']
+    tabla_D = tablas['D']
+    tabla_E = tablas['E']
+    tabla_F = tablas['F']
+    tabla_G = tablas['G']
+    tabla_H = tablas['H']
+    tabla_I = tablas['I']
+
+
+    # 3) Imprime una o varias
+    imprimir_tabla('A', tabla_A)
+    imprimir_tabla('B', tabla_B)
+    imprimir_tabla('C', tabla_C)
+    imprimir_tabla('D', tabla_D)
+    imprimir_tabla('E', tabla_E)
+    imprimir_tabla('F', tabla_F)
+    imprimir_tabla('G', tabla_G)
+    imprimir_tabla('H', tabla_H)
+    imprimir_tabla('I', tabla_I)
+
+    # 4) (opcional) Guarda cada tabla en JSON
+    # si ya existen los archivos no guardar, si no existen guardarlos
+    if not os.path.exists("tablas_json"):
+       guardar_tablas_json(tablas, carpeta="tablas_json")
+       print("\nJSON generados en carpeta 'tablas_json/'.")
