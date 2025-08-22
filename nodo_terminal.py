@@ -86,31 +86,94 @@ class NodoRouter:
             paquete = json.loads(data)
             
             if paquete['tipo'] == 'envio_paquete':
-                origen = paquete['origen']
-                destino = paquete['destino']
+                origen_original = paquete['origen']
+                destino_final = paquete['destino']
                 mensaje = paquete['mensaje']
-                ruta_usada = paquete['ruta']
+                ruta_completa = paquete['ruta']
                 costo_total = paquete['costo']
+                saltos_recorridos = paquete.get('saltos_recorridos', [])
                 
-                print(f"\n📦 PAQUETE RECIBIDO!")
-                print(f"   De: {origen}")
-                print(f"   Para: {destino}")
-                print(f"   Mensaje: {mensaje}")
-                print(f"   Ruta usada: {' -> '.join(ruta_usada)}")
-                print(f"   Costo total: {costo_total}")
-                print(f"   ✅ ENTREGADO EXITOSAMENTE\n")
+                # Agregar este nodo a los saltos recorridos
+                saltos_recorridos.append(self.nombre)
                 
-                # Confirmar recepción
-                respuesta = {'estado': 'entregado', 'nodo_receptor': self.nombre}
-                cliente.send(json.dumps(respuesta).encode())
+                # Verificar si este nodo es el destino final
+                if self.nombre == destino_final:
+                    print(f"\n📦 PAQUETE FINAL RECIBIDO!")
+                    print(f"   De: {origen_original}")
+                    print(f"   Para: {destino_final}")
+                    print(f"   Mensaje: {mensaje}")
+                    print(f"   Ruta planificada: {' -> '.join(ruta_completa)}")
+                    print(f"   Saltos realizados: {' -> '.join(saltos_recorridos)}")
+                    print(f"   Costo total: {costo_total}")
+                    print(f"   ✅ ENTREGADO EXITOSAMENTE AL DESTINO FINAL\n")
+                    
+                    respuesta = {'estado': 'entregado', 'nodo_receptor': self.nombre}
+                    cliente.send(json.dumps(respuesta).encode())
+                    
+                else:
+                    # Este es un nodo intermedio, reenviar el paquete
+                    print(f"\n🔄 PAQUETE EN TRÁNSITO!")
+                    print(f"   De: {origen_original} → Para: {destino_final}")
+                    print(f"   Pasando por: {self.nombre}")
+                    print(f"   Ruta: {' -> '.join(ruta_completa)}")
+                    print(f"   Saltos hasta ahora: {' -> '.join(saltos_recorridos)}")
+                    
+                    # Encontrar el siguiente salto en la ruta
+                    try:
+                        indice_actual = ruta_completa.index(self.nombre)
+                        if indice_actual + 1 < len(ruta_completa):
+                            siguiente_nodo = ruta_completa[indice_actual + 1]
+                            print(f"   🚀 Reenviando a: {siguiente_nodo}\n")
+                            
+                            # Actualizar el paquete con los saltos recorridos
+                            paquete['saltos_recorridos'] = saltos_recorridos
+                            
+                            # Reenviar al siguiente nodo
+                            self.reenviar_paquete(siguiente_nodo, paquete)
+                            
+                            respuesta = {'estado': 'reenviado', 'nodo_intermedio': self.nombre}
+                            cliente.send(json.dumps(respuesta).encode())
+                        else:
+                            print(f"   ❌ Error: No hay siguiente nodo en la ruta")
+                            respuesta = {'estado': 'error', 'mensaje': 'Fin de ruta inesperado'}
+                            cliente.send(json.dumps(respuesta).encode())
+                            
+                    except ValueError:
+                        print(f"   ❌ Error: Nodo {self.nombre} no encontrado en la ruta")
+                        respuesta = {'estado': 'error', 'mensaje': 'Nodo no en ruta'}
+                        cliente.send(json.dumps(respuesta).encode())
                 
         except Exception as e:
             print(f"❌ Error procesando paquete: {e}")
         finally:
             cliente.close()
             
+    def reenviar_paquete(self, siguiente_nodo: str, paquete: dict):
+        """Reenvía un paquete al siguiente nodo en la ruta"""
+        try:
+            cliente = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            puerto_siguiente = self.puertos_nodos[siguiente_nodo]
+            cliente.connect((self.host, puerto_siguiente))
+            
+            # Enviar paquete
+            cliente.send(json.dumps(paquete).encode())
+            
+            # Esperar confirmación
+            respuesta = cliente.recv(1024).decode()
+            confirmacion = json.loads(respuesta)
+            
+            if confirmacion['estado'] == 'reenviado':
+                print(f"   ✅ Paquete reenviado exitosamente a {siguiente_nodo}")
+            elif confirmacion['estado'] == 'entregado':
+                print(f"   ✅ Paquete entregado al destino final por {siguiente_nodo}")
+                
+            cliente.close()
+            
+        except Exception as e:
+            print(f"   ❌ Error reenviando a {siguiente_nodo}: {e}")
+            
     def enviar_paquete(self, destino: str, mensaje: str = "Paquete de prueba"):
-        """Envía un paquete a otro nodo"""
+        """Envía un paquete a otro nodo siguiendo la ruta calculada"""
         if destino not in self.tabla_rutas:
             print(f"❌ No hay ruta hacia {destino}")
             return False
@@ -121,8 +184,17 @@ class NodoRouter:
         print(f"\n📤 ENVIANDO PAQUETE:")
         print(f"   De: {self.nombre}")
         print(f"   Para: {destino}")
-        print(f"   Ruta: {' -> '.join(ruta)}")
+        print(f"   Ruta planificada: {' -> '.join(ruta)}")
         print(f"   Costo: {costo}")
+        
+        # El primer salto es el segundo nodo en la ruta (índice 1)
+        if len(ruta) < 2:
+            print(f"   ❌ Error: Ruta inválida")
+            return False
+            
+        primer_salto = ruta[1]  # El siguiente nodo después del origen
+        
+        print(f"   🚀 Enviando primero a: {primer_salto}")
         
         # Preparar paquete
         paquete = {
@@ -131,14 +203,15 @@ class NodoRouter:
             'destino': destino,
             'mensaje': mensaje,
             'ruta': ruta,
-            'costo': costo
+            'costo': costo,
+            'saltos_recorridos': [self.nombre]  # Iniciar con el nodo origen
         }
         
         try:
-            # Conectar con el nodo destino
+            # Conectar con el primer nodo en la ruta
             cliente = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            puerto_destino = self.puertos_nodos[destino]
-            cliente.connect((self.host, puerto_destino))
+            puerto_primer_salto = self.puertos_nodos[primer_salto]
+            cliente.connect((self.host, puerto_primer_salto))
             
             # Enviar paquete
             cliente.send(json.dumps(paquete).encode())
@@ -147,14 +220,15 @@ class NodoRouter:
             respuesta = cliente.recv(1024).decode()
             confirmacion = json.loads(respuesta)
             
-            if confirmacion['estado'] == 'entregado':
-                print(f"   ✅ {destino} TE ENVÍO UN PAQUETE USANDO ESTA RUTA: {' -> '.join(ruta)} - COSTO: {costo}")
+            print(f"   ✅ Paquete enviado a {primer_salto}")
+            print(f"   📋 Estado: {confirmacion.get('estado', 'desconocido')}")
+            print(f"   🎯 El paquete seguirá la ruta: {' -> '.join(ruta)}")
             
             cliente.close()
             return True
             
         except Exception as e:
-            print(f"   ❌ Error enviando a {destino}: {e}")
+            print(f"   ❌ Error enviando a {primer_salto}: {e}")
             return False
             
     def mostrar_tabla_enrutamiento(self):
