@@ -1,0 +1,14 @@
+{
+  "mode": "development",
+  "use_xmpp": false,
+  "log_level": "DEBUG",
+  "test_nodes": [
+    "A",
+    "B",
+    "C",
+    "D"
+  ],
+  "default_topology": "topology.json",
+  "auto_start": true,
+  "simulation_speed": 1.0
+}

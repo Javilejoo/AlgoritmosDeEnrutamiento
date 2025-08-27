@@ -1,0 +1,56 @@
+[
+  {
+    "node_id": "A",
+    "jid": "node_a@localhost",
+    "password": "password_a",
+    "resource": "routing"
+  },
+  {
+    "node_id": "B",
+    "jid": "node_b@localhost",
+    "password": "password_b",
+    "resource": "routing"
+  },
+  {
+    "node_id": "C",
+    "jid": "node_c@localhost",
+    "password": "password_c",
+    "resource": "routing"
+  },
+  {
+    "node_id": "D",
+    "jid": "node_d@localhost",
+    "password": "password_d",
+    "resource": "routing"
+  },
+  {
+    "node_id": "E",
+    "jid": "node_e@localhost",
+    "password": "password_e",
+    "resource": "routing"
+  },
+  {
+    "node_id": "F",
+    "jid": "node_f@localhost",
+    "password": "password_f",
+    "resource": "routing"
+  },
+  {
+    "node_id": "G",
+    "jid": "node_g@localhost",
+    "password": "password_g",
+    "resource": "routing"
+  },
+  {
+    "node_id": "H",
+    "jid": "node_h@localhost",
+    "password": "password_h",
+    "resource": "routing"
+  },
+  {
+    "node_id": "I",
+    "jid": "node_i@localhost",
+    "password": "password_i",
+    "resource": "routing"
+  }
+]

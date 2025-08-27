@@ -1,0 +1,22 @@
+{
+  "mode": "production",
+  "use_xmpp": true,
+  "log_level": "INFO",
+  "xmpp_server": "localhost",
+  "xmpp_port": 5222,
+  "test_nodes": [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "H",
+    "I"
+  ],
+  "default_topology": "topology.json",
+  "auto_start": false,
+  "simulation_speed": 1.0,
+  "timeout": 30
+}
