@@ -244,11 +244,7 @@ class SocketRoutingClient:
         message = MessageFactory.create_lsp_message(self.jid, lsp_data)
         return await self.send_message(message)
     
-    async def send_distance_vector(self, to_node: str, distance_vector: Dict):
-        """Envía Distance Vector"""
-        to_addr = f"node_{to_node}@localhost:{self.node_ports.get(to_node, 65000)}"
-        message = MessageFactory.create_dv_message(self.jid, to_addr, distance_vector)
-        return await self.send_message(message)
+    # send_distance_vector method removed - not needed
     
     def get_stats(self) -> Dict:
         """Obtiene estadísticas del cliente"""

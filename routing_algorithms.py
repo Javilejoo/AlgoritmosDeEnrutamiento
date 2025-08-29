@@ -1,6 +1,7 @@
 """
 Implementación específica de algoritmos de enrutamiento
-Distance Vector Routing (DVR) y Link State Routing (LSR) con XMPP
+Link State Routing (LSR) con XMPP
+Solo incluye LSR ya que DVR no es requerido
 """
 
 import asyncio
@@ -15,211 +16,19 @@ from protocolo import NetworkMessage, MessageFactory, MessageType
 from dijkstra import dijkstra
 from grafo import grafo
 
-@dataclass
-class DistanceVector:
-    """Representa un vector de distancias"""
-    source: str
-    destinations: Dict[str, float]  # {destination: distance}
-    sequence: int
-    timestamp: float
-    
-    def to_dict(self) -> Dict:
-        return {
-            "source": self.source,
-            "destinations": self.destinations,
-            "sequence": self.sequence,
-            "timestamp": self.timestamp
-        }
-    
-    @classmethod
-    def from_dict(cls, data: Dict) -> 'DistanceVector':
-        return cls(
-            source=data["source"],
-            destinations=data["destinations"],
-            sequence=data["sequence"],
-            timestamp=data["timestamp"]
-        )
+import asyncio
+import json
+import time
+from typing import Dict, List, Optional, Tuple, Any
+from dataclasses import dataclass
+import copy
 
-class DVRNode(SocketRoutingNode):
-    """Nodo que implementa Distance Vector Routing"""
-    
-    def __init__(self, node_id: str, port: int, 
-                 topology_file: Optional[str] = None):
-        super().__init__(node_id, port, topology_file)
-        
-        # Estado específico de DVR
-        self.distance_vectors: Dict[str, DistanceVector] = {}  # {node_id: DV}
-        self.sequence_number = 0
-        self.convergence_count = 0
-        
-        # Configurar handlers específicos de DVR
-        self.xmpp_client.register_handler("dv", self._handle_dv_message)
-        
-        self.logger.info(f"🎯 Nodo DVR {node_id} inicializado")
-    
-    async def _routing_process(self):
-        """Proceso de routing específico para DVR"""
-        self.logger.info("🗺️ Proceso DVR iniciado")
-        
-        # Inicializar vector de distancias propio
-        await self._initialize_distance_vector()
-        
-        while self.state.name != "STOPPED":
-            try:
-                # Enviar vector de distancias a vecinos
-                await self._send_distance_vectors()
-                
-                # Verificar convergencia
-                if await self._check_convergence():
-                    self.convergence_count += 1
-                    if self.convergence_count > 3:
-                        self.logger.info("✅ DVR convergido")
-                        # Reducir frecuencia de actualizaciones
-                        await asyncio.sleep(60)
-                        continue
-                
-                # Esperar antes de siguiente actualización
-                await asyncio.sleep(15)  # DVR típicamente actualiza cada 15-30s
-                
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                self.logger.error(f"Error en DVR routing: {e}")
-                await asyncio.sleep(5)
-        
-        self.logger.info("🔴 Proceso DVR detenido")
-    
-    async def _initialize_distance_vector(self):
-        """Inicializa el vector de distancias propio"""
-        destinations = {self.node_id: 0.0}  # Distancia a sí mismo es 0
-        
-        # Agregar vecinos directos
-        for neighbor_jid, neighbor_info in self.neighbors.items():
-            neighbor_id = self._extract_node_id(neighbor_jid)
-            destinations[neighbor_id] = neighbor_info.cost
-        
-        # Crear vector de distancias inicial
-        self.distance_vectors[self.node_id] = DistanceVector(
-            source=self.node_id,
-            destinations=destinations,
-            sequence=self.sequence_number,
-            timestamp=time.time()
-        )
-        
-        self.logger.info(f"📊 Vector inicial: {destinations}")
-    
-    async def _send_distance_vectors(self):
-        """Envía vector de distancias a todos los vecinos"""
-        if self.node_id not in self.distance_vectors:
-            return
-        
-        my_dv = self.distance_vectors[self.node_id]
-        
-        # Incrementar número de secuencia
-        self.sequence_number += 1
-        my_dv.sequence = self.sequence_number
-        my_dv.timestamp = time.time()
-        
-        # Enviar a cada vecino
-        for neighbor_jid in self.neighbors:
-            try:
-                await self.xmpp_client.send_distance_vector(
-                    neighbor_jid, 
-                    my_dv.to_dict()
-                )
-                self.logger.debug(f"📤 DV enviado a {neighbor_jid}")
-            except Exception as e:
-                self.logger.error(f"Error enviando DV a {neighbor_jid}: {e}")
-    
-    async def _handle_dv_message(self, message: NetworkMessage, from_jid: str):
-        """Maneja mensajes de Distance Vector"""
-        try:
-            dv_data = message.payload.get("distance_vector", {})
-            received_dv = DistanceVector.from_dict(dv_data)
-            
-            neighbor_id = self._extract_node_id(from_jid)
-            self.logger.info(f"📥 DV recibido de {neighbor_id}")
-            
-            # Verificar si es más reciente
-            if (neighbor_id not in self.distance_vectors or 
-                received_dv.sequence > self.distance_vectors[neighbor_id].sequence):
-                
-                self.distance_vectors[neighbor_id] = received_dv
-                
-                # Recalcular rutas usando Bellman-Ford
-                updated = await self._update_routing_table_dvr()
-                
-                if updated:
-                    self.logger.info("🔄 Tabla de routing actualizada por DV")
-                    # Resetear contador de convergencia
-                    self.convergence_count = 0
-                    
-        except Exception as e:
-            self.logger.error(f"Error procesando DV de {from_jid}: {e}")
-    
-    async def _update_routing_table_dvr(self) -> bool:
-        """Actualiza tabla de routing usando algoritmo Bellman-Ford distribuido"""
-        if self.node_id not in self.distance_vectors:
-            return False
-        
-        old_distances = copy.deepcopy(self.distance_vectors[self.node_id].destinations)
-        updated = False
-        
-        # Para cada destino, calcular mejor ruta
-        all_destinations = set()
-        for dv in self.distance_vectors.values():
-            all_destinations.update(dv.destinations.keys())
-        
-        new_distances = {self.node_id: 0.0}
-        
-        for dest in all_destinations:
-            if dest == self.node_id:
-                continue
-            
-            best_distance = float('inf')
-            best_next_hop = None
-            
-            # Verificar ruta directa
-            for neighbor_jid, neighbor_info in self.neighbors.items():
-                neighbor_id = self._extract_node_id(neighbor_jid)
-                if neighbor_id == dest:
-                    if neighbor_info.cost < best_distance:
-                        best_distance = neighbor_info.cost
-                        best_next_hop = neighbor_id
-            
-            # Verificar rutas a través de vecinos
-            for neighbor_jid, neighbor_info in self.neighbors.items():
-                neighbor_id = self._extract_node_id(neighbor_jid)
-                
-                if (neighbor_id in self.distance_vectors and 
-                    dest in self.distance_vectors[neighbor_id].destinations):
-                    
-                    distance_via_neighbor = (neighbor_info.cost + 
-                                           self.distance_vectors[neighbor_id].destinations[dest])
-                    
-                    if distance_via_neighbor < best_distance:
-                        best_distance = distance_via_neighbor
-                        best_next_hop = neighbor_id
-            
-            if best_distance != float('inf'):
-                new_distances[dest] = best_distance
-                if best_next_hop:
-                    async with self.lock:
-                        self.routing_table[dest] = (best_next_hop, best_distance)
-        
-        # Verificar si hubo cambios
-        if new_distances != old_distances:
-            self.distance_vectors[self.node_id].destinations = new_distances
-            updated = True
-            self.routing_updates += 1
-        
-        return updated
-    
-    async def _check_convergence(self) -> bool:
-        """Verifica si el algoritmo ha convergido"""
-        # DVR converge cuando no hay cambios en vectores de distancia
-        # por un período determinado
-        return len(self.distance_vectors) > 1  # Simplificado para demo
+from socket_routing_node import SocketRoutingNode, NeighborInfo
+from protocolo import NetworkMessage, MessageFactory, MessageType
+from dijkstra import dijkstra
+from grafo import grafo
+
+# DistanceVector class removed - only LSR is implemented
 
 @dataclass
 class LinkStatePacket:
@@ -455,58 +264,80 @@ class RoutingNodeFactory:
     """Factory para crear nodos con diferentes algoritmos"""
     
     @staticmethod
-    def create_node(algorithm: str, node_id: str, port: int,
-                   topology_file: Optional[str] = None) -> SocketRoutingNode:
-        """Crea un nodo con el algoritmo especificado"""
+    def create_node(algorithm: str, node_id: str, jid: str, password: str, 
+                   use_xmpp: bool = True, topology_file: Optional[str] = None):
+        """Crea un nodo según el algoritmo especificado"""
+        algorithm = algorithm.lower()
         
-        if algorithm.lower() == "dvr":
-            return DVRNode(node_id, port, topology_file)
-        elif algorithm.lower() == "lsr":
-            return LSRNode(node_id, port, topology_file)
+        if algorithm == "flooding":
+            if use_xmpp:
+                from routing_node import RoutingNode
+                node = RoutingNode(node_id, jid, password, use_xmpp)
+                node.algorithm_type = "flooding"
+                return node
+            else:
+                from flooding_algorithm import FloodingNode
+                return FloodingNode(node_id, int(jid.split('@')[0][-1]) + 65000, topology_file)
+        
+        elif algorithm == "lsr":
+            if use_xmpp:
+                from routing_node import RoutingNode
+                node = RoutingNode(node_id, jid, password, use_xmpp)
+                node.algorithm_type = "lsr"
+                return node
+            else:
+                return LSRNode(node_id, int(jid.split('@')[0][-1]) + 65000, topology_file)
+        
+        elif algorithm == "dijkstra" or algorithm == "basic":
+            from routing_node import RoutingNode
+            return RoutingNode(node_id, jid, password, use_xmpp)
+        
         else:
-            # Nodo básico con Dijkstra estático
-            return SocketRoutingNode(node_id, port, topology_file)
+            raise ValueError(f"Algoritmo no soportado: {algorithm}")
+
+# Ejemplo de uso
+if __name__ == "__main__":
+    async def test_lsr():
+        # Crear nodo LSR para pruebas
+        node = LSRNode("A", 65001)
+        await node.start()
+        
+        print("Nodo LSR iniciado para pruebas")
+        await asyncio.sleep(10)
+        
+        await node.stop()
+    
+    asyncio.run(test_lsr())
 
 # Ejemplo de uso
 if __name__ == "__main__":
     async def main():
-        print("=== ALGORITMOS DE ENRUTAMIENTO ===")
+        print("=== LINK STATE ROUTING DEMO ===")
         
-        # Crear nodos con diferentes algoritmos
-        dvr_node = RoutingNodeFactory.create_node(
-            "dvr", "A", 65001
-        )
-        
+        # Crear nodo LSR
         lsr_node = RoutingNodeFactory.create_node(
             "lsr", "B", 65002
         )
         
-        # Simular algunos vecinos
-        dvr_node.neighbors["B"] = NeighborInfo(
-            node_name="B", cost=5.0, last_hello=time.time()
-        )
-        
+        # Simular vecino
         lsr_node.neighbors["A"] = NeighborInfo(
             node_name="A", cost=5.0, last_hello=time.time()
         )
         
-        print("✅ Nodos DVR y LSR creados")
+        print("✅ Nodo LSR creado")
         
-        # Iniciar nodos
-        await dvr_node.start()
+        # Iniciar nodo
         await lsr_node.start()
         
-        print("🚀 Nodos iniciados - Simulando 15 segundos...")
-        await asyncio.sleep(15)
+        print("🚀 Nodo LSR iniciado - Simulando 10 segundos...")
+        await asyncio.sleep(10)
         
         # Mostrar estado
-        print(f"\nEstado DVR: {dvr_node.get_status()}")
-        print(f"Estado LSR: {lsr_node.get_status()}")
+        print(f"\nEstado LSR: {lsr_node.get_status()}")
         
-        # Detener nodos
-        await dvr_node.stop()
+        # Detener nodo
         await lsr_node.stop()
         
-        print("✅ Demo completada")
+        print("✅ Demo LSR completada")
     
     asyncio.run(main())

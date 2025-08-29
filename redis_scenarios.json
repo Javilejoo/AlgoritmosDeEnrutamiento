@@ -1,0 +1,48 @@
+{
+  "topologias": {
+    "topologia1": {
+      "descripcion": "Red lineal simple",
+      "nodos": {
+        "A": {"vecinos": {"B": 5}},
+        "B": {"vecinos": {"A": 5, "C": 3}},
+        "C": {"vecinos": {"B": 3}}
+      }
+    },
+    "topologia2": {
+      "descripcion": "Red en estrella",
+      "nodos": {
+        "A": {"vecinos": {"B": 2, "C": 4, "D": 6}},
+        "B": {"vecinos": {"A": 2}},
+        "C": {"vecinos": {"A": 4}},
+        "D": {"vecinos": {"A": 6}}
+      }
+    },
+    "topologia3": {
+      "descripcion": "Red mesh parcial",
+      "nodos": {
+        "A": {"vecinos": {"B": 5, "C": 3}},
+        "B": {"vecinos": {"A": 5, "C": 2, "D": 4}},
+        "C": {"vecinos": {"A": 3, "B": 2, "D": 1}},
+        "D": {"vecinos": {"B": 4, "C": 1}}
+      }
+    }
+  },
+  "algoritmos": {
+    "flooding": {
+      "descripcion": "Algoritmo de inundación",
+      "ttl_default": 5,
+      "requiere_topologia": false
+    },
+    "link_state": {
+      "descripcion": "Link State Routing con Dijkstra",
+      "ttl_default": 10,
+      "requiere_topologia": true
+    }
+  },
+  "redis_config": {
+    "host": "lab3.redesuvg.cloud",
+    "port": 6379,
+    "password": "UVGRedis2025",
+    "canal_formato": "sec{seccion}.{topologia}.{nodo}"
+  }
+}

@@ -13,7 +13,6 @@ class ProtocolType(Enum):
     DIJKSTRA = "dijkstra"
     FLOODING = "flooding"
     LSR = "lsr"  # Link State Routing
-    DVR = "dvr"  # Distance Vector Routing
 
 class MessageType(Enum):
     """Tipos de mensaje soportados"""
@@ -24,7 +23,6 @@ class MessageType(Enum):
     TABLE = "table"        # Información de tablas
     DATA = "data"          # Datos de usuario
     LSP = "lsp"           # Link State Packet
-    DV = "dv"             # Distance Vector
     ACK = "ack"           # Confirmación
 
 class NetworkMessage:
@@ -117,18 +115,6 @@ class MessageFactory:
             to_addr="broadcast",  # LSP se envía a todos
             payload=lsp_data,
             ttl=10
-        )
-    
-    @staticmethod
-    def create_dv_message(from_addr: str, to_addr: str, distance_vector: Dict) -> NetworkMessage:
-        """Crea un mensaje Distance Vector"""
-        return NetworkMessage(
-            proto=ProtocolType.DVR.value,
-            msg_type=MessageType.DV.value,
-            from_addr=from_addr,
-            to_addr=to_addr,
-            payload={"distance_vector": distance_vector},
-            ttl=2  # Solo para vecinos
         )
     
     @staticmethod

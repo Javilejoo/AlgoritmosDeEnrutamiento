@@ -24,7 +24,7 @@ class UnifiedInterface:
         """Muestra el menú principal"""
         print("\n" + "="*70)
         print("  ALGORITMOS DE ENRUTAMIENTO - LABORATORIO REDES")
-        print("         Implementaciones: Dijkstra, DVR, LSR, XMPP")
+        print("         Implementaciones: Dijkstra, Flooding, LSR, XMPP")
         print("="*70)
         print()
         print("🔧 CONFIGURACIÓN Y SETUP:")
@@ -33,12 +33,12 @@ class UnifiedInterface:
         print()
         print("🎯 ALGORITMOS CLÁSICOS (Local):")
         print("  3. Dijkstra centralizado")
-        print("  4. Sistema distribuido con terminales")
-        print("  5. Link State clásico (simulación)")
-        print("  6. Distance Vector simulado")
+        print("  4. Flooding puro (demo interactivo)")
+        print("  5. Sistema distribuido con terminales")
+        print("  6. Link State clásico (simulación)")
         print()
         print("🌐 ALGORITMOS CON XMPP:")
-        print("  7. Prueba DVR con XMPP")
+        print("  7. Prueba Flooding con XMPP")
         print("  8. Prueba LSR con XMPP")
         print("  9. Prueba completa de conectividad")
         print(" 10. Simulación de fallas y recuperación")
@@ -66,13 +66,13 @@ class UnifiedInterface:
             elif choice == '3':
                 await self.run_centralized_dijkstra()
             elif choice == '4':
-                await self.run_distributed_terminals()
+                await self.run_flooding_demo()
             elif choice == '5':
-                await self.run_classic_link_state()
+                await self.run_distributed_terminals()
             elif choice == '6':
-                await self.run_distance_vector_simulation()
+                await self.run_classic_link_state()
             elif choice == '7':
-                await self.test_dvr_xmpp()
+                await self.test_flooding_xmpp()
             elif choice == '8':
                 await self.test_lsr_xmpp()
             elif choice == '9':
@@ -162,50 +162,17 @@ class UnifiedInterface:
         import subprocess
         subprocess.run([sys.executable, "demo_link_state.py"])
     
-    async def run_distance_vector_simulation(self):
-        """Opción 6: Distance Vector simulado"""
-        print("\n📊 SIMULACIÓN DISTANCE VECTOR")
+    async def run_flooding_demo(self):
+        """Opción 4: Demo de flooding puro"""
+        print("\n🌊 DEMO DE FLOODING PURO")
         print("-" * 40)
         
-        # Crear nodos DVR para simulación local
-        nodes = {}
-        for node_id in ["A", "B", "C", "D"]:
-            node = RoutingNodeFactory.create_node(
-                "dvr", node_id, f"node_{node_id}@localhost", "pass", use_xmpp=False
-            )
-            nodes[node_id] = node
-        
-        # Configurar vecinos (topología simple)
-        from routing_node import NeighborInfo
-        import time
-        
-        nodes["A"].neighbors["node_B@localhost"] = NeighborInfo("node_B@localhost", 1, time.time())
-        nodes["B"].neighbors["node_A@localhost"] = NeighborInfo("node_A@localhost", 1, time.time())
-        nodes["B"].neighbors["node_C@localhost"] = NeighborInfo("node_C@localhost", 2, time.time())
-        nodes["C"].neighbors["node_B@localhost"] = NeighborInfo("node_B@localhost", 2, time.time())
-        nodes["C"].neighbors["node_D@localhost"] = NeighborInfo("node_D@localhost", 1, time.time())
-        nodes["D"].neighbors["node_C@localhost"] = NeighborInfo("node_C@localhost", 1, time.time())
-        
-        print("🚀 Iniciando nodos DVR...")
-        for node in nodes.values():
-            await node.start()
-        
-        print("⏳ Simulando convergencia (30 segundos)...")
-        await asyncio.sleep(30)
-        
-        print("\n📊 RESULTADOS:")
-        for node_id, node in nodes.items():
-            status = node.get_status()
-            print(f"   Nodo {node_id}: {status['routing_updates']} actualizaciones")
-        
-        for node in nodes.values():
-            await node.stop()
-        
-        print("✅ Simulación DVR completada")
+        import subprocess
+        subprocess.run([sys.executable, "demo_flooding.py"])
     
-    async def test_dvr_xmpp(self):
-        """Opción 7: Prueba DVR con XMPP"""
-        print("\n🌐 PRUEBA DVR CON XMPP")
+    async def test_flooding_xmpp(self):
+        """Opción 7: Prueba Flooding con XMPP"""
+        print("\n� PRUEBA FLOODING CON XMPP")
         print("-" * 40)
         
         if not os.path.exists("topology.json"):
@@ -216,15 +183,15 @@ class UnifiedInterface:
         coordinator = TestCoordinator(use_xmpp=False)
         coordinator.load_configuration("topology.json", "nodes.json")
         
-        # Crear nodos DVR
+        # Crear nodos Flooding
         test_nodes = ["A", "B", "C", "D"]
         await coordinator.create_nodes(test_nodes)
         
-        # Cambiar algoritmo a DVR
+        # Cambiar algoritmo a Flooding
         for node_id, node in coordinator.nodes.items():
-            # Reemplazar con nodo DVR
+            # Reemplazar con nodo Flooding
             new_node = RoutingNodeFactory.create_node(
-                "dvr", node_id, node.jid, node.password, use_xmpp=False
+                "flooding", node_id, node.jid, node.password, use_xmpp=False
             )
             new_node.neighbors = node.neighbors
             new_node.topology = node.topology
@@ -232,15 +199,14 @@ class UnifiedInterface:
         
         await coordinator.start_network()
         
-        print("⏳ Probando DVR (30 segundos)...")
+        print("⏳ Probando Flooding (30 segundos)...")
         await asyncio.sleep(30)
         
-        results = await coordinator.run_connectivity_test()
+        results = await coordinator.run_flooding_test()
         
-        success_rate = (results['successful_deliveries'] / results['total_tests']) * 100
-        print(f"\n📊 RESULTADOS DVR:")
-        print(f"   Tasa de éxito: {success_rate:.1f}%")
-        print(f"   Entregas: {results['successful_deliveries']}/{results['total_tests']}")
+        avg_coverage = sum(t['coverage'] for t in results['flooding_tests']) / len(results['flooding_tests'])
+        print(f"\n📊 RESULTADOS FLOODING:")
+        print(f"   Cobertura promedio: {avg_coverage:.1f}%")
         
         await coordinator.stop_network()
         self.current_coordinator = coordinator
@@ -356,7 +322,7 @@ class UnifiedInterface:
         print("\n⚖️ COMPARACIÓN DE ALGORITMOS")
         print("-" * 40)
         
-        algorithms = ["dijkstra", "dvr", "lsr"]
+        algorithms = ["dijkstra", "flooding", "lsr"]
         results = {}
         
         for algo in algorithms:
@@ -381,16 +347,24 @@ class UnifiedInterface:
             await coordinator.start_network()
             await asyncio.sleep(20)  # Tiempo para convergencia
             
-            test_result = await coordinator.run_connectivity_test()
-            results[algo] = test_result
+            if algo == "flooding":
+                test_result = await coordinator.run_flooding_test()
+                avg_coverage = sum(t['coverage'] for t in test_result['flooding_tests']) / len(test_result['flooding_tests'])
+                results[algo] = {"coverage": avg_coverage, "type": "flooding"}
+            else:
+                test_result = await coordinator.run_connectivity_test()
+                results[algo] = test_result
             
             await coordinator.stop_network()
         
         print("\n📊 COMPARACIÓN FINAL:")
         print("-" * 40)
         for algo, result in results.items():
-            success_rate = (result['successful_deliveries'] / result['total_tests']) * 100
-            print(f"   {algo.upper()}: {success_rate:.1f}% éxito")
+            if result.get("type") == "flooding":
+                print(f"   {algo.upper()}: {result['coverage']:.1f}% cobertura")
+            else:
+                success_rate = (result['successful_deliveries'] / result['total_tests']) * 100
+                print(f"   {algo.upper()}: {success_rate:.1f}% éxito")
     
     async def performance_analysis(self):
         """Opción 12: Análisis de rendimiento"""
@@ -490,13 +464,13 @@ class UnifiedInterface:
     
     async def _demo_convergence(self):
         """Demo de convergencia de algoritmo"""
-        print("\n🔄 DEMO: Convergencia DVR")
+        print("\n🔄 DEMO: Convergencia LSR")
         
-        # Crear pequeña red DVR
+        # Crear pequeña red LSR
         nodes = {}
         for node_id in ["A", "B", "C"]:
             nodes[node_id] = RoutingNodeFactory.create_node(
-                "dvr", node_id, f"{node_id}@demo", "pass", use_xmpp=False
+                "lsr", node_id, f"{node_id}@demo", "pass", use_xmpp=False
             )
         
         # Topología lineal A-B-C

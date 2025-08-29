@@ -120,7 +120,6 @@ class RoutingNode:
         self.xmpp_client.register_handler("echo", self._handle_ping)
         self.xmpp_client.register_handler("data", self._handle_data_message)
         self.xmpp_client.register_handler("lsp", self._handle_lsp)
-        self.xmpp_client.register_handler("dv", self._handle_distance_vector)
         self.xmpp_client.register_handler("info", self._handle_info)
     
     async def start(self):
@@ -361,14 +360,6 @@ class RoutingNode:
             if neighbor_jid != from_jid:  # No reenviar al origen
                 await self.xmpp_client.send_message(message)
     
-    async def _handle_distance_vector(self, message: NetworkMessage, from_jid: str):
-        """Maneja mensajes Distance Vector"""
-        dv_data = message.payload
-        self.logger.info(f"📊 DV recibido de {from_jid}")
-        
-        # Procesar distance vector (implementar según algoritmo)
-        await self._process_distance_vector(dv_data, from_jid)
-    
     async def _handle_info(self, message: NetworkMessage, from_jid: str):
         """Maneja mensajes de información general"""
         info_data = message.payload
@@ -441,17 +432,12 @@ class RoutingNode:
     
     async def _send_routing_updates(self):
         """Envía actualizaciones de routing a vecinos"""
-        # Implementar según algoritmo específico (LSR, DVR, etc.)
+        # Implementar según algoritmo específico (LSR, Flooding, etc.)
         pass
     
     async def _process_lsp(self, lsp_data: Dict):
         """Procesa un Link State Packet"""
         # Implementar procesamiento de LSP
-        pass
-    
-    async def _process_distance_vector(self, dv_data: Dict, from_jid: str):
-        """Procesa un Distance Vector"""
-        # Implementar procesamiento de DV
         pass
     
     def _extract_node_id(self, jid: str) -> str:

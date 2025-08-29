@@ -167,10 +167,7 @@ class XMPPRoutingClient:
         message = MessageFactory.create_lsp_message(self.jid, lsp_data)
         return await self.send_message(message)
     
-    async def send_distance_vector(self, to_jid: str, distance_vector: Dict):
-        """Envía Distance Vector"""
-        message = MessageFactory.create_dv_message(self.jid, to_jid, distance_vector)
-        return await self.send_message(message)
+    # send_distance_vector method removed - not needed
     
     def get_stats(self) -> Dict:
         """Obtiene estadísticas del cliente"""
