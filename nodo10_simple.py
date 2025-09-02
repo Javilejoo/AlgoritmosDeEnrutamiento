@@ -20,6 +20,8 @@ class Nodo10Client:
         self.redis_client = None
         self.pubsub = None
         self.algorithm = "flooding"  # Algoritmo por defecto
+        self.test_mode = False  # Modo de prueba
+        self.test_node_id = "sec20.topologia1.nodo1.prueba1"  # Canal de prueba
         
     async def connect(self):
         """Conectar automáticamente"""
@@ -28,10 +30,29 @@ class Nodo10Client:
             await self.redis_client.ping()
             
             self.pubsub = self.redis_client.pubsub()
-            await self.pubsub.subscribe(self.node_id)
             
-            print(f"✅ Nodo10 conectado automáticamente")
-            print(f"👂 Escuchando en: {self.node_id}")
+            if self.test_mode:
+                # Modo prueba: solo escuchar canal de prueba
+                await self.pubsub.subscribe(self.test_node_id)
+                print(f"✅ Nodo conectado en MODO PRUEBA")
+                print(f"👂 Escuchando en: {self.test_node_id}")
+            else:
+                # Modo normal: escuchar múltiples canales
+                channels_to_listen = [
+                    self.node_id,  # Propio canal para mensajes directos
+                    "sec20.topologia2.nodo5",
+                    "sec20.topologia2.nodo6", 
+                    "sec20.topologia2.nodo7",
+                    "sec20.topologia2.nodo8",
+                    "sec20.topologia2.nodo9"
+                ]
+                
+                for channel in channels_to_listen:
+                    await self.pubsub.subscribe(channel)
+                
+                print(f"✅ Nodo conectado en MODO NORMAL")
+                print(f"👂 Escuchando en: {self.node_id} + otros nodos")
+            
             return True
         except Exception as e:
             print(f"❌ Error conectando: {e}")
@@ -57,28 +78,116 @@ class Nodo10Client:
             channel = f"sec20.topologia2.{target}"
             await self.redis_client.publish(channel, json.dumps(msg))
             print(f"   👋 HELLO → {target}")
+            
+            # Mostrar el formato completo del mensaje HELLO enviado
+            message_format = {
+                'type': 'message',
+                'pattern': None,
+                'channel': channel.encode(),
+                'data': json.dumps(msg).encode()
+            }
+            print(f"   📋 Formato: {message_format}")
     
     async def send_message(self, target_node, content):
-        """Enviar mensaje a nodo específico"""
+        """Enviar mensaje según el algoritmo seleccionado"""
+        
+        # Determinar el ID del remitente según el modo
+        from_node = self.test_node_id if self.test_mode else self.node_id
+        
+        # AMBOS algoritmos usan protocolo LSR, pero difieren en el envío
         msg = {
             "proto": "lsr",
             "type": "message", 
-            "from": self.node_id,
-            "to": f"sec20.topologia2.{target_node}",
+            "from": from_node,
+            "to": f"sec20.topologia2.{target_node}" if not self.test_mode else self.test_node_id,
             "ttl": 5,
             "headers": [],
             "payload": content,
-            "algorithm": self.algorithm  # Incluir algoritmo en el mensaje
+            "algorithm": self.algorithm
         }
         
-        channel = f"sec20.topologia2.{target_node}"
-        await self.redis_client.publish(channel, json.dumps(msg))
-        print(f"📤 Mensaje enviado a {target_node} usando {self.algorithm}: {content}")
+        if self.algorithm == "flooding":
+            # FLOODING: Enviar a TODOS los vecinos/canales
+            if self.test_mode:
+                # En modo prueba, enviar múltiples veces al mismo canal de prueba para simular flooding
+                print(f"📤 FLOODING (PRUEBA): Enviando mensaje para {target_node} al canal de prueba:")
+                channel = self.test_node_id
+                await self.redis_client.publish(channel, json.dumps(msg))
+                print(f"   🌊 Flooding (Prueba) → {self.test_node_id}")
+                
+                # Mostrar el formato completo del mensaje enviado
+                message_format = {
+                    'type': 'message',
+                    'pattern': None,
+                    'channel': channel.encode(),
+                    'data': json.dumps(msg).encode()
+                }
+                print(f"   📋 Formato: {message_format}")
+            else:
+                # Modo normal: enviar a todos los vecinos
+                all_neighbors = ["nodo5", "nodo6", "nodo7", "nodo8", "nodo9"]
+                
+                print(f"📤 FLOODING: Enviando mensaje para {target_node} a TODOS los vecinos:")
+                for neighbor in all_neighbors:
+                    channel = f"sec20.topologia2.{neighbor}"
+                    await self.redis_client.publish(channel, json.dumps(msg))
+                    print(f"   🌊 Flooding → {neighbor}")
+                    
+                    # Mostrar el formato completo del mensaje enviado
+                    message_format = {
+                        'type': 'message',
+                        'pattern': None,
+                        'channel': channel.encode(),
+                        'data': json.dumps(msg).encode()
+                    }
+                    print(f"   📋 Formato: {message_format}")
+            
+        else:
+            # LINK STATE: Enviar solo al destino específico
+            if self.test_mode:
+                # En modo prueba, enviar al canal de prueba
+                channel = self.test_node_id
+                await self.redis_client.publish(channel, json.dumps(msg))
+                print(f"📤 LSR (PRUEBA): Mensaje enviado al canal de prueba: {content}")
+                
+                # Mostrar el formato completo del mensaje enviado
+                message_format = {
+                    'type': 'message',
+                    'pattern': None,
+                    'channel': channel.encode(),
+                    'data': json.dumps(msg).encode()
+                }
+                print(f"   📋 Formato: {message_format}")
+            else:
+                # Modo normal: enviar solo al destino
+                channel = f"sec20.topologia2.{target_node}"
+                await self.redis_client.publish(channel, json.dumps(msg))
+                print(f"📤 LSR: Mensaje enviado directamente a {target_node}: {content}")
+                
+                # Mostrar el formato completo del mensaje enviado
+                message_format = {
+                    'type': 'message',
+                    'pattern': None,
+                    'channel': channel.encode(),
+                    'data': json.dumps(msg).encode()
+                }
+                print(f"   📋 Formato: {message_format}")
     
     def set_algorithm(self, algorithm):
         """Cambiar algoritmo de enrutamiento"""
         self.algorithm = algorithm
         print(f"🎯 Algoritmo cambiado a: {algorithm}")
+    
+    def toggle_test_mode(self):
+        """Alternar entre modo normal y modo prueba"""
+        self.test_mode = not self.test_mode
+        mode_name = "PRUEBA" if self.test_mode else "NORMAL"
+        print(f"🔄 Modo cambiado a: {mode_name}")
+        if self.test_mode:
+            print(f"📡 Canal de prueba: {self.test_node_id}")
+        else:
+            print(f"📡 Canal normal: {self.node_id}")
+        print("⚠️  Necesita reconectar para aplicar cambios")
     
     async def listen_messages(self):
         """Modo escucha directo (bloquea hasta Ctrl+C)"""
@@ -105,15 +214,17 @@ class Nodo10Client:
         """Procesar mensaje recibido"""
         try:
             parsed = json.loads(data)
+            timestamp = datetime.now().strftime("%H:%M:%S")
             
+            # Manejar mensajes LSR (AMBOS algoritmos usan LSR ahora)
             if parsed.get("proto") == "lsr":
                 msg_type = parsed.get("type")
                 from_node = parsed.get("from", "Unknown")
                 payload = parsed.get("payload", "")
+                algorithm = parsed.get("algorithm", "unknown")
                 
                 # Solo mostrar mensajes de otros nodos
                 if from_node != self.node_id:
-                    timestamp = datetime.now().strftime("%H:%M:%S")
                     from_short = from_node.split(".")[-1] if "." in from_node else from_node
                     
                     if msg_type == "hello":
@@ -121,11 +232,17 @@ class Nodo10Client:
                         
                     elif msg_type == "message":
                         to_node = parsed.get("to", "")
+                        
                         if to_node == self.node_id:
-                            print(f"{timestamp} | {from_short:8} | MESSAGE | {str(payload)[:20]}")
-                            print(f"🎉 MENSAJE PARA TI: {payload}")
+                            # Mensaje dirigido a nosotros
+                            algo_label = "FLOOD" if algorithm == "flooding" else "LSR"
+                            print(f"{timestamp} | {from_short:8} | {algo_label:7} | {str(payload)[:20]}")
+                            print(f"🎉 MENSAJE {algo_label} PARA TI: {payload}")
                         else:
-                            print(f"{timestamp} | {from_short:8} | TRANSIT | Para {parsed.get('to', 'N/A').split('.')[-1]}")
+                            # Mensaje en tránsito
+                            algo_label = "FLD-TRA" if algorithm == "flooding" else "LSR-TRA"
+                            to_short = parsed.get('to', 'N/A').split('.')[-1] if '.' in parsed.get('to', '') else parsed.get('to', 'N/A')
+                            print(f"{timestamp} | {from_short:8} | {algo_label:7} | Para {to_short}")
                         
                     elif msg_type == "info":
                         print(f"{timestamp} | {from_short:8} | INFO    | Tabla de rutas")
@@ -152,9 +269,12 @@ def print_menu():
     print()
     print("📡 COMUNICACIÓN:")
     print("  1. Enviar HELLO a todos")
-    print("  2. Enviar mensaje a nodo específico")
-    print("  3. Modo escucha (Ctrl+C para salir)")
-    print("  4. Seleccionar algoritmo")
+    print("  2. Enviar HELLO a nodo específico")
+    print("  3. Enviar mensaje a nodo específico")
+    print("  4. Modo escucha (Ctrl+C para salir)")
+    print("  5. Seleccionar algoritmo")
+    print("  6. Cambiar modo (Normal/Prueba)")
+    print("  7. Reconectar")
     print()
     print("🎯 NODOS DISPONIBLES:")
     print("  nodo5, nodo6, nodo7, nodo8, nodo9")
@@ -173,8 +293,12 @@ async def main():
         print("❌ No se pudo conectar. Saliendo...")
         return
     
-    # Conexión exitosa - NO activar escucha automática
+    # Conexión exitosa
+    mode_name = "PRUEBA" if client.test_mode else "NORMAL"
     print(f"🎯 Algoritmo actual: {client.algorithm}")
+    print(f"🔧 Modo actual: {mode_name}")
+    if client.test_mode:
+        print(f"📡 Canal de prueba: {client.test_node_id}")
     
     try:
         while True:
@@ -190,8 +314,24 @@ async def main():
                 await client.send_hello()
                 
             elif choice == "2":
+                # Enviar HELLO a nodo específico
+                print("\n👋 ENVIAR HELLO ESPECÍFICO")
+                print("Nodos disponibles: nodo5, nodo6, nodo7, nodo8, nodo9")
+                
+                target = input("¿A qué nodo? (ej: nodo5): ").strip()
+                if not target:
+                    print("❌ Debe especificar un nodo")
+                    continue
+                
+                # Agregar 'nodo' si solo pusieron el número
+                if target.isdigit():
+                    target = f"nodo{target}"
+                    
+                await client.send_hello([target])
+                
+            elif choice == "3":
                 # Enviar mensaje a nodo específico
-                print("\n💌 ENVIAR MENSAJE")
+                print(f"\n💌 ENVIAR MENSAJE (Algoritmo: {client.algorithm})")
                 print("Nodos disponibles: nodo5, nodo6, nodo7, nodo8, nodo9")
                 
                 target = input("¿A qué nodo? (ej: nodo5): ").strip()
@@ -210,11 +350,11 @@ async def main():
                 
                 await client.send_message(target, message)
                 
-            elif choice == "3":
+            elif choice == "4":
                 # Modo escucha directo
                 await client.listen_messages()
                     
-            elif choice == "4":
+            elif choice == "5":
                 # Seleccionar algoritmo
                 print("\n🎯 SELECCIONAR ALGORITMO")
                 print("1. Flooding (inundación)")
@@ -228,6 +368,19 @@ async def main():
                     client.set_algorithm("link_state")
                 else:
                     print("❌ Opción inválida")
+                    
+            elif choice == "6":
+                # Cambiar modo
+                client.toggle_test_mode()
+                
+            elif choice == "7":
+                # Reconectar
+                print("🔄 Reconectando...")
+                await client.disconnect()
+                if await client.connect():
+                    print("✅ Reconexión exitosa")
+                else:
+                    print("❌ Error en reconexión")
                     
             else:
                 print("❌ Opción inválida")
