@@ -18,8 +18,12 @@ REDIS_PASSWORD = "UVGRedis2025"
 
 # Topología de la red - definir vecinos y costos para cada nodo
 NETWORK_TOPOLOGY = {
-    5: {6: 1, 7: 2},  # nodo5 conectado a nodo6 (costo 1) y nodo7 (costo 2)
-    6: {5: 1, 7: 1, 8: 2},  # nodo6 conectado a nodo5, nodo7, nodo8
+    1: {2: 1, 3: 2, 5: 3},  # nodo1 conectado a nodo2, nodo3, nodo5
+    2: {1: 1, 3: 1, 4: 2},  # nodo2 conectado a nodo1, nodo3, nodo4
+    3: {1: 2, 2: 1, 4: 1, 5: 2},  # nodo3 conectado a nodo1, nodo2, nodo4, nodo5
+    4: {2: 2, 3: 1, 6: 3},  # nodo4 conectado a nodo2, nodo3, nodo6
+    5: {1: 3, 3: 2, 6: 1, 7: 2},  # nodo5 conectado a nodo1, nodo3, nodo6, nodo7
+    6: {4: 3, 5: 1, 7: 1, 8: 2},  # nodo6 conectado a nodo4, nodo5, nodo7, nodo8
     7: {5: 2, 6: 1, 8: 1, 9: 2},  # nodo7 conectado a nodo5, nodo6, nodo8, nodo9
     8: {6: 2, 7: 1, 9: 1, 10: 2},  # nodo8 conectado a nodo6, nodo7, nodo9, nodo10
     9: {7: 2, 8: 1, 10: 1},  # nodo9 conectado a nodo7, nodo8, nodo10
@@ -175,7 +179,7 @@ class NodelClient:
         print(f"\n🛤️  RUTAS DESDE NODO{self.node_number} (usando Dijkstra)")
         print("-"*50)
         
-        for target in range(5, 11):
+        for target in range(1, 11):
             if target != self.node_number:
                 path = self.dijkstra(self.node_number, target)
                 if path:
@@ -389,7 +393,7 @@ def print_menu(client):
     print("  7. Ver estadísticas del nodo")
     print()
     print("🎯 NODOS DISPONIBLES:")
-    print("  nodo5, nodo6, nodo7, nodo8, nodo9, nodo10")
+    print("  nodo1, nodo2, nodo3, nodo4, nodo5, nodo6, nodo7, nodo8, nodo9, nodo10 (o el que elijas)")
     print()
     print(f"🌐 ALGORITMO ACTUAL: {client.algorithm.upper()}")
     if client.algorithm == "flooding":
@@ -407,12 +411,12 @@ async def main():
     # Seleccionar qué nodo ser
     print("\n🎯 SELECCIÓN DE NODO")
     print("¿Qué nodo quieres ser?")
-    node_input = input("Ingresa el número del nodo (5-10): ").strip()
+    node_input = input("Ingresa el número del nodo (1-10): ").strip()
     
     try:
         node_number = int(node_input)
-        if node_number < 5 or node_number > 10:
-            print("❌ Número de nodo debe estar entre 5 y 10. Usando nodo10 por defecto.")
+        if node_number < 1 or node_number > 10:
+            print("❌ Número de nodo debe estar entre 1 y 10. Usando nodo10 por defecto.")
             node_number = 10
     except ValueError:
         print("❌ Número inválido. Usando nodo10 por defecto.")
@@ -440,7 +444,7 @@ async def main():
             elif choice == "1":
                 # Enviar mensaje a nodo específico
                 print("\n💌 ENVIAR MENSAJE")
-                print("Nodos disponibles: nodo5, nodo6, nodo7, nodo8, nodo9, nodo10")
+                print("Nodos disponibles: nodo1, nodo2, nodo3, nodo4, nodo5, nodo6, nodo7, nodo8, nodo9, nodo10")
                 
                 target = input("¿A qué nodo? (ej: nodo5): ").strip()
                 if not target:
@@ -481,11 +485,11 @@ async def main():
                 # Cambiar identidad de nodo
                 print("\n🔄 CAMBIAR IDENTIDAD DE NODO")
                 print(f"Actualmente eres: nodo{client.node_number}")
-                new_node = input("¿Qué nodo quieres ser ahora? (5-10): ").strip()
+                new_node = input("¿Qué nodo quieres ser ahora? (1-10): ").strip()
                 
                 try:
                     new_node_number = int(new_node)
-                    if 5 <= new_node_number <= 10:
+                    if 1 <= new_node_number <= 10:
                         # Desconectar del canal actual
                         if client.pubsub:
                             await client.pubsub.unsubscribe(client.node_id)
@@ -500,7 +504,7 @@ async def main():
                         print(f"✅ Ahora eres nodo{new_node_number}")
                         print(f"👂 Escuchando en: {client.node_id}")
                     else:
-                        print("❌ Número de nodo debe estar entre 5 y 10")
+                        print("❌ Número de nodo debe estar entre 1 y 10")
                 except ValueError:
                     print("❌ Número inválido")
             
