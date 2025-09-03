@@ -68,13 +68,13 @@ async def test_communication():
                 channel = message["channel"].decode()
                 data = message["data"].decode()
                 
-                print(f"\n📨 MENSAJE RECIBIDO #{message_count}")
-                print(f"   📻 Canal: {channel}")
-                print(f"   📄 Datos: {data[:100]}...")
+                print(f"\n MENSAJE RECIBIDO #{message_count}")
+                print(f"    Canal: {channel}")
+                print(f"    Datos: {data[:100]}...")
                 
                 try:
                     parsed = json.loads(data)
-                    print(f"   👤 Origen: {parsed.get('origin', 'N/A')}")
+                    print(f"    Origen: {parsed.get('origin', 'N/A')}")
                     print(f"   🎯 Destino: {parsed.get('destination', 'N/A')}")
                     print(f"   💬 Contenido: {parsed.get('content', 'N/A')}")
                 except:
