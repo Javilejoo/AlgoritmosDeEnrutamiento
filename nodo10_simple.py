@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Cliente LSR simplificado - Nodo10 automático
+Cliente LSR simplificado - Nodo configurable
 Menú simple para comunicación con otros nodos
+Permite seleccionar qué nodo ser y enviar mensajes a cualquier nodo
 """
 
 import asyncio
@@ -14,9 +15,10 @@ REDIS_HOST = "lab3.redesuvg.cloud"
 REDIS_PORT = 6379
 REDIS_PASSWORD = "UVGRedis2025"
 
-class Nodo10Client:
-    def __init__(self):
-        self.node_id = "sec20.topologia2.nodo10"
+class NodelClient:
+    def __init__(self, node_number=10):
+        self.node_id = f"sec20.topologia2.nodo{node_number}"
+        self.node_number = node_number
         self.redis_client = None
         self.pubsub = None
         self.algorithm = "flooding"  # Algoritmo por defecto
@@ -30,33 +32,12 @@ class Nodo10Client:
             self.pubsub = self.redis_client.pubsub()
             await self.pubsub.subscribe(self.node_id)
             
-            print(f"✅ Nodo10 conectado automáticamente")
+            print(f"✅ Nodo{self.node_number} conectado automáticamente")
             print(f"👂 Escuchando en: {self.node_id}")
             return True
         except Exception as e:
             print(f"❌ Error conectando: {e}")
             return False
-    
-    async def send_hello(self, target_nodes=None):
-        """Enviar HELLO a nodos específicos o todos"""
-        if target_nodes is None:
-            target_nodes = ["nodo5", "nodo6", "nodo7", "nodo8", "nodo9"]
-        
-        msg = {
-            "proto": "lsr",
-            "type": "hello",
-            "from": self.node_id,
-            "to": "broadcast",
-            "ttl": 5,
-            "headers": [],
-            "payload": ""
-        }
-        
-        print(f"📤 Enviando HELLO...")
-        for target in target_nodes:
-            channel = f"sec20.topologia2.{target}"
-            await self.redis_client.publish(channel, json.dumps(msg))
-            print(f"   👋 HELLO → {target}")
     
     async def send_message(self, target_node, content):
         """Enviar mensaje a nodo específico"""
@@ -71,9 +52,13 @@ class Nodo10Client:
             "algorithm": self.algorithm  # Incluir algoritmo en el mensaje
         }
         
+        # Imprimir el JSON completo que se envía
+        print(f"\n📤 ENVIANDO MENSAJE - Algoritmo: {self.algorithm}")
+        print(f"JSON completo: {json.dumps(msg, indent=2)}")
+        
         channel = f"sec20.topologia2.{target_node}"
         await self.redis_client.publish(channel, json.dumps(msg))
-        print(f"📤 Mensaje enviado a {target_node} usando {self.algorithm}: {content}")
+        print(f"✅ Mensaje enviado a {target_node}: {content}")
     
     def set_algorithm(self, algorithm):
         """Cambiar algoritmo de enrutamiento"""
@@ -87,10 +72,11 @@ class Nodo10Client:
             return
         
         print(f"👂 MODO ESCUCHA ACTIVADO")
-        print(f"� Escuchando en: {self.node_id}")
-        print("Time     | From     | Type    | Content")
-        print("-" * 45)
+        print(f"🎯 Escuchando en: {self.node_id}")
+        print("Time     | From     | Type    | Details")
+        print("-" * 50)
         print("Presiona Ctrl+C para volver al menú")
+        print("📝 Se mostrará el JSON completo de cada mensaje recibido")
         
         try:
             async for message in self.pubsub.listen():
@@ -109,31 +95,36 @@ class Nodo10Client:
             if parsed.get("proto") == "lsr":
                 msg_type = parsed.get("type")
                 from_node = parsed.get("from", "Unknown")
+                to_node = parsed.get("to", "")
                 payload = parsed.get("payload", "")
+                algorithm = parsed.get("algorithm", "N/A")
                 
-                # Solo mostrar mensajes de otros nodos
-                if from_node != self.node_id:
-                    timestamp = datetime.now().strftime("%H:%M:%S")
-                    from_short = from_node.split(".")[-1] if "." in from_node else from_node
+                timestamp = datetime.now().strftime("%H:%M:%S")
+                from_short = from_node.split(".")[-1] if "." in from_node else from_node
+                to_short = to_node.split(".")[-1] if "." in to_node else to_node
+                
+                # Mostrar el JSON completo recibido
+                print(f"\n📥 MENSAJE RECIBIDO - {timestamp}")
+                print(f"JSON completo: {json.dumps(parsed, indent=2)}")
+                
+                if msg_type == "hello":
+                    print(f"{timestamp} | {from_short:8} | HELLO   | Algoritmo: {algorithm}")
                     
-                    if msg_type == "hello":
-                        print(f"{timestamp} | {from_short:8} | HELLO   | Saludo recibido")
-                        
-                    elif msg_type == "message":
-                        to_node = parsed.get("to", "")
-                        if to_node == self.node_id:
-                            print(f"{timestamp} | {from_short:8} | MESSAGE | {str(payload)[:20]}")
-                            print(f"🎉 MENSAJE PARA TI: {payload}")
-                        else:
-                            print(f"{timestamp} | {from_short:8} | TRANSIT | Para {parsed.get('to', 'N/A').split('.')[-1]}")
-                        
-                    elif msg_type == "info":
-                        print(f"{timestamp} | {from_short:8} | INFO    | Tabla de rutas")
-                        
+                elif msg_type == "message":
+                    if to_node == self.node_id:
+                        print(f"{timestamp} | {from_short:8} | MESSAGE | Para: {to_short} | Algoritmo: {algorithm}")
+                        print(f"🎉 MENSAJE PARA TI: {payload}")
+                        print(f"📊 Detalles: De {from_short} usando {algorithm}")
+                    else:
+                        print(f"{timestamp} | {from_short:8} | TRANSIT | Para {to_short} | Algoritmo: {algorithm}")
+                    
+                elif msg_type == "info":
+                    print(f"{timestamp} | {from_short:8} | INFO    | Tabla de rutas | Algoritmo: {algorithm}")
+                    
         except json.JSONDecodeError:
-            pass  # Ignorar mensajes no JSON
+            print(f"❌ Error: Mensaje no es JSON válido - {data}")
         except Exception as e:
-            pass  # Ignorar errores
+            print(f"❌ Error procesando mensaje: {e}")
     
     async def disconnect(self):
         """Desconectar"""
@@ -144,41 +135,55 @@ class Nodo10Client:
             await self.redis_client.aclose()
         print("🔌 Desconectado")
 
-def print_menu():
+def print_menu(client):
     """Mostrar menú simplificado"""
     print("\n" + "="*50)
-    print("  🌐 NODO10 - COMUNICACIÓN LSR")
+    print(f"  🌐 NODO{client.node_number} - COMUNICACIÓN LSR")
     print("="*50)
     print()
     print("📡 COMUNICACIÓN:")
-    print("  1. Enviar HELLO a todos")
-    print("  2. Enviar mensaje a nodo específico")
-    print("  3. Modo escucha (Ctrl+C para salir)")
-    print("  4. Seleccionar algoritmo")
+    print("  1. Enviar mensaje a nodo específico")
+    print("  2. Modo escucha (Ctrl+C para salir)")
+    print("  3. Seleccionar algoritmo")
+    print("  4. Cambiar identidad de nodo")
     print()
     print("🎯 NODOS DISPONIBLES:")
-    print("  nodo5, nodo6, nodo7, nodo8, nodo9")
+    print("  nodo5, nodo6, nodo7, nodo8, nodo9, nodo10 (o el que elijas)")
     print()
     print("  0. Salir")
     print("-"*50)
 
 async def main():
     """Función principal"""
-    print("🚀 INICIANDO NODO10...")
+    print("🚀 INICIANDO CLIENTE LSR...")
     
-    client = Nodo10Client()
+    # Seleccionar qué nodo ser
+    print("\n🎯 SELECCIÓN DE NODO")
+    print("¿Qué nodo quieres ser?")
+    node_input = input("Ingresa el número del nodo (5-10): ").strip()
+    
+    try:
+        node_number = int(node_input)
+        if node_number < 5 or node_number > 10:
+            print("❌ Número de nodo debe estar entre 5 y 10. Usando nodo10 por defecto.")
+            node_number = 10
+    except ValueError:
+        print("❌ Número inválido. Usando nodo10 por defecto.")
+        node_number = 10
+    
+    client = NodelClient(node_number)
     
     # Conectar automáticamente
     if not await client.connect():
         print("❌ No se pudo conectar. Saliendo...")
         return
     
-    # Conexión exitosa - NO activar escucha automática
+    # Conexión exitosa
     print(f"🎯 Algoritmo actual: {client.algorithm}")
     
     try:
         while True:
-            print_menu()
+            print_menu(client)
             choice = input("👉 Seleccione opción: ").strip()
             
             if choice == "0":
@@ -186,13 +191,10 @@ async def main():
                 break
                 
             elif choice == "1":
-                # Enviar HELLO a todos
-                await client.send_hello()
-                
-            elif choice == "2":
                 # Enviar mensaje a nodo específico
                 print("\n💌 ENVIAR MENSAJE")
-                print("Nodos disponibles: nodo5, nodo6, nodo7, nodo8, nodo9")
+                print("Nodos disponibles: nodo5, nodo6, nodo7, nodo8, nodo9, nodo10")
+                print("(Puedes enviarte a ti mismo desde otra terminal)")
                 
                 target = input("¿A qué nodo? (ej: nodo5): ").strip()
                 if not target:
@@ -210,11 +212,11 @@ async def main():
                 
                 await client.send_message(target, message)
                 
-            elif choice == "3":
+            elif choice == "2":
                 # Modo escucha directo
                 await client.listen_messages()
                     
-            elif choice == "4":
+            elif choice == "3":
                 # Seleccionar algoritmo
                 print("\n🎯 SELECCIONAR ALGORITMO")
                 print("1. Flooding (inundación)")
@@ -228,6 +230,33 @@ async def main():
                     client.set_algorithm("link_state")
                 else:
                     print("❌ Opción inválida")
+            
+            elif choice == "4":
+                # Cambiar identidad de nodo
+                print("\n🔄 CAMBIAR IDENTIDAD DE NODO")
+                print(f"Actualmente eres: nodo{client.node_number}")
+                new_node = input("¿Qué nodo quieres ser ahora? (5-10): ").strip()
+                
+                try:
+                    new_node_number = int(new_node)
+                    if 5 <= new_node_number <= 10:
+                        # Desconectar del canal actual
+                        if client.pubsub:
+                            await client.pubsub.unsubscribe(client.node_id)
+                        
+                        # Cambiar identidad
+                        client.node_number = new_node_number
+                        client.node_id = f"sec20.topologia2.nodo{new_node_number}"
+                        
+                        # Suscribirse al nuevo canal
+                        await client.pubsub.subscribe(client.node_id)
+                        
+                        print(f"✅ Ahora eres nodo{new_node_number}")
+                        print(f"👂 Escuchando en: {client.node_id}")
+                    else:
+                        print("❌ Número de nodo debe estar entre 5 y 10")
+                except ValueError:
+                    print("❌ Número inválido")
                     
             else:
                 print("❌ Opción inválida")
